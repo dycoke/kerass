@@ -93,7 +93,7 @@ class Network:
 
         self._compile(data)
 
-        np.random.seed(808)
+        np.random.seed(1352)
         for i in range(len(self.architecture)):
             self.params.append({
                 'W': np.random.uniform(low = -1, high = 1,

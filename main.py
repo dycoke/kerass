@@ -14,8 +14,8 @@ def get_data(path):
 X, y = get_data("datasets/iris.csv")
 
 model = Network()
+model.add(DenseLayer(6))
 model.add(DenseLayer(10))
-model.add(DenseLayer(10))
-model.add(DenseLayer(10))
+model.add(DenseLayer(8))
 model.add(DenseLayer(3))
 model.train(X, y, 300)
