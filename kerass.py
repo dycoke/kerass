@@ -11,21 +11,24 @@ class DenseLayer:
     
     def d_relu(self, dA, Z):
         # derivative of ReLU
-        pass
+        dZ = np.array(dA, copy = True)
+        dZ[Z <= 0] = 0
+        return dZ
     
     def softmax(self, inputs):
         # softmax activation
 
         scores = np.exp(inputs)
         ret = scores / np.sum(scores, axis = 1, keepdims=True)
+        return ret
     
     def forward(self, inputs, weights, bias, activation):
         # single layer forward propogation
 
-        Z_curr = np.dot(inputs, weights.T)
+        Z_curr = np.dot(inputs, weights.T) + bias
         if activation == 'relu':
             A_curr = self.relu(Z_curr)
-        else:
+        elif activation == 'softmax':
             A_curr = self.softmax(Z_curr)
         
         return A_curr, Z_curr
@@ -34,7 +37,17 @@ class DenseLayer:
     
     def backward(self, dA_curr, W_curr, Z_curr, A_prev, activation):
         # single layer backwards propogation
-        pass
+        if activation == 'softmax':
+            dW = np.dot(A_prev.T, dA_curr)
+            db = np.sum(dA_curr, axis=0, keepdims=True)
+            dA = np.dot(dA_curr, W_curr) 
+        else:
+            dZ = self.d_relu(dA_curr, Z_curr)
+            dW = np.dot(A_prev.T, dZ)
+            db = np.sum(dZ, axis=0, keepdims=True)
+            dA = np.dot(dZ, W_curr)
+        
+        return dA, dW, db
 
 class Network:
     def __init__(self) -> None:
@@ -80,7 +93,7 @@ class Network:
 
         self._compile(data)
 
-        np.random.seed(15257)
+        np.random.seed(808)
         for i in range(len(self.architecture)):
             self.params.append({
                 'W': np.random.uniform(low = -1, high = 1,
@@ -103,20 +116,72 @@ class Network:
                 self.params[i]['b'],
                 self.architecture[i]['activation']
             )
-            self.memory.append({'inputs':A_prev, 'Z':Z_curr})
+            self.memory.append({'inputs': A_prev, 'Z': Z_curr})
+        
+        return A_curr
     
     def _backprop(self, predicted, actual):
         # performs a backwards propogation
-        pass
+        num_samples = len(actual)
+
+        dscores = predicted
+        dscores[range(num_samples), actual] -= 1
+        dscores /= num_samples
+
+        dA_prev = dscores
+        for idx, layer in reversed(list(enumerate(self.network))):
+            dA_curr = dA_prev
+
+            A_prev = self.memory[idx]['inputs']
+            Z_prev = self.memory[idx]['Z']
+            W_prev = self.params[idx]['W']
+
+            activation = self.architecture[idx]['activation']
+
+            dA_prev, dW_curr, db_curr = layer.backward(dA_curr, W_prev, Z_prev, A_prev, activation)
+
+            self.gradients.append({'dW': dW_curr, 'db': db_curr})
+
     
     def _update(self, lr = 0.01):
         # update the prarmeters using lr as the constant factor on the gradient
-        pass
+        for idx, layer in enumerate(self.network):
+            self.params[idx]['W'] -= lr * list(reversed(self.gradients))[idx]['dW'].T  
+            self.params[idx]['b'] -= lr * list(reversed(self.gradients))[idx]['db']
+
+    def _calc_accuracy(self, predicted, actual):
+        #calculate accuracy
+        return np.mean(np.argmax(predicted, axis = 1) == actual)
     
     def _calc_loss(self, predicted, actual):
         # calculate and return loss using cross-entropy
-        pass
+        samples = len(actual)
+
+        correct_logprobs = 0
+        for c in predicted[range(samples), actual]:
+            if c <= 0:
+                c = 0.01
+            #add a small episilon to prevent bad things
+            correct_logprobs += -np.log(c)
+        loss = correct_logprobs / samples
+
+        return loss
     
     def train(self, X_train, y_train, epochs):
         # train the model using stochastic gradient descent
-        pass
+        self.loss = []
+        self.accuracy = []
+
+        self._init_weights(X_train)
+
+        for i in range(1, epochs + 1):
+            yhat = self._forwardprop(X_train)
+            self.accuracy.append(self._calc_accuracy(yhat, y_train))
+            self.loss.append(self._calc_loss(yhat, y_train))
+
+            self._backprop(yhat, y_train)
+
+            self._update()
+
+            if i % 20 == 0:
+                print(f'EPOCH: {i}, ACCURACY: {self.accuracy[-1]}, LOSS: {self.loss[-1]}')
