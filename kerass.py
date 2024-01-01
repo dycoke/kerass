@@ -6,7 +6,6 @@ class DenseLayer:
     
     def relu(self, inputs):
         # ReLU activation
-
         return np.maximum(0, inputs)
     
     def d_relu(self, dA, Z):
@@ -18,7 +17,7 @@ class DenseLayer:
     def softmax(self, inputs):
         # softmax activation
 
-        scores = np.exp(inputs)
+        scores = np.exp(inputs - np.max(inputs, axis=1)[:, np.newaxis])
         ret = scores / np.sum(scores, axis = 1, keepdims=True)
         return ret
     
